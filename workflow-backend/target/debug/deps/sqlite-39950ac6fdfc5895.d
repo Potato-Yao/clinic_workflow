@@ -1,0 +1,10 @@
+/home/rustypotato/Documents/clinic_workflow/workflow-backend/target/debug/deps/sqlite-39950ac6fdfc5895.d: /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/lib.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/error.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/value.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/connection.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/cursor.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/statement.rs
+
+/home/rustypotato/Documents/clinic_workflow/workflow-backend/target/debug/deps/libsqlite-39950ac6fdfc5895.rmeta: /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/lib.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/error.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/value.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/connection.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/cursor.rs /home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/statement.rs
+
+/home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/lib.rs:
+/home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/error.rs:
+/home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/value.rs:
+/home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/connection.rs:
+/home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/cursor.rs:
+/home/rustypotato/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlite-0.37.0/src/statement.rs:
