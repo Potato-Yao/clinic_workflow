@@ -1,16 +1,18 @@
 use rusqlite::{Connection, Params};
+use std::cell::RefCell;
 use std::io::{Error, ErrorKind};
 use std::path::Path;
 
 pub struct TaskManager {
-    connection: Connection,
-    id: i32,
+    connection: RefCell<Connection>,
+    id: RefCell<i32>,
 }
 
+#[derive(Default)]
 pub struct Task {
     id: i32,
-    location: String,
-    staff: String,
+    location: Option<String>,
+    staff: Option<String>,
     initial_post: Option<String>,
     initial_confirm: Option<String>,
     final_post: Option<String>,
@@ -29,12 +31,15 @@ impl TaskManager {
             )
         })?;
 
-        Ok(TaskManager { connection, id: -1 })
+        Ok(TaskManager {
+            connection: RefCell::new(connection),
+            id: RefCell::new(-1),
+        })
     }
 
-    pub fn load_database(&mut self) -> Result<(), Error> {
+    pub fn load_database(&self) -> Result<(), Error> {
         execute_database_command(
-            &self.connection,
+            &self.connection.borrow_mut(),
             "create table if not exists clinic_task(
                 id integer primary key,
                 location text,
@@ -54,8 +59,9 @@ impl TaskManager {
             )
         })?;
 
-        self.id = self
+        let id = self
             .connection
+            .borrow_mut()
             .query_one("select max(id) as latest_id from clinic_task", [], |r| {
                 r.get::<usize, i32>(0)
             })
@@ -65,6 +71,7 @@ impl TaskManager {
                     format!("Unable to get the latest id of the database with error {e}"),
                 )
             })?;
+        self.id.replace(id);
 
         Ok(())
     }
@@ -74,7 +81,7 @@ impl TaskManager {
             return Err(Error::new(ErrorKind::InvalidInput, ""));
         }
         execute_database_command(
-            &self.connection,
+            &self.connection.borrow_mut(),
             "insert into clinic_task (id, location, staff)
                                  values (?1, ?2, ?3)",
             (&task.id, &task.location, &task.staff),
@@ -87,12 +94,20 @@ impl TaskManager {
             )
         })
     }
+
+    fn get_id(&self) -> i32 {
+        *self.id.borrow_mut() += 1;
+        self.id.borrow().clone()
+    }
 }
 
 impl Task {
-    // pub fn new() -> Self {
-    //
-    // }
+    fn new(manager: &TaskManager) -> Self {
+        Task {
+            id: manager.get_id(),
+            ..Default::default()
+        }
+    }
 }
 
 fn open_database<P>(path: P) -> Result<Connection, rusqlite::Error>
@@ -116,15 +131,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::database::TaskManager;
+    use crate::database::{Task, TaskManager};
     const DATABASE_LOCATION: &str = "./clinic_test.db";
 
     #[test]
-    fn database_load() -> Result<(), ()> {
-        let mut db = TaskManager::build(DATABASE_LOCATION).unwrap();
+    fn database_load() {
+        let db = TaskManager::build(DATABASE_LOCATION).unwrap();
         db.load_database().unwrap();
-        assert_ne!(db.id, -1);
+        assert_ne!(*db.id.borrow(), -1);
+    }
 
-        Ok(())
+    #[test]
+    fn new_task() {
+        let db = TaskManager::build(DATABASE_LOCATION).unwrap();
+        let task = Task::new(&db);
+        assert_ne!(task.id, -1);
     }
 }
