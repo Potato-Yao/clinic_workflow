@@ -3,8 +3,8 @@ use workflow_backend::database;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let database_location = Path::new("./clinic.db");
-    let task_manager = database::TaskManager::build(database_location)?;
+    let database_location = (Path::new("./clinic_basic.db"), Path::new("./clinic_detail.db"));
+    let database_manager = database::DatabaseManager::build(database_location)?;
 
 
     Ok(())
