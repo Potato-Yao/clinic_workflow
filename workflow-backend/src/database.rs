@@ -19,6 +19,11 @@ pub struct Task {
     initial_confirm: Option<String>,
     final_post: Option<String>,
     final_confirm: Option<String>,
+    // The check state will be a string of digits, each one stands for the state of one inspection
+    // but the first digit stands for the version of this string rule.
+    // for example, define order of inspections: <Version><Screen><Keyboard><Touchpad>
+    // if they all works well, giving string 1111. otherwise, like, the touchpad can't work, then
+    // the string should be 1101.
     initial_check_state: Option<String>,
     remedy: Option<String>,
     final_check_state: Option<String>,
@@ -28,7 +33,14 @@ pub struct Task {
 pub struct InitialState {
     location: String,
     staff: String,
+    initial_check: String,
     remedy: String,
+    post: String,
+}
+
+pub struct FinalState {
+    final_check: String,
+    additional: Option<String>,
     post: String,
 }
 
@@ -40,16 +52,19 @@ impl DatabaseManager {
         let basic_info_connection = open_database(path.0)?;
         let detail_info_connection = open_database(path.1)?;
 
-        Ok(DatabaseManager {
+        let manager = DatabaseManager {
             basic_info_connection: RefCell::new(basic_info_connection),
             detail_info_connection: RefCell::new(detail_info_connection),
             id: RefCell::new(-1),
-        })
+        };
+        Self::load_database(&manager)?;
+
+        Ok(manager)
     }
 
-    pub fn load_database(&self) -> Result<(), Error> {
+    fn load_database(manager: &DatabaseManager) -> Result<(), Error> {
         execute_database_command(
-            &self.basic_info_connection.borrow_mut(),
+            &manager.basic_info_connection.borrow_mut(),
             "create table if not exists clinic_task(
                 id integer primary key,
                 location text,
@@ -69,7 +84,7 @@ impl DatabaseManager {
         })?;
 
         execute_database_command(
-            &self.detail_info_connection.borrow_mut(),
+            &manager.detail_info_connection.borrow_mut(),
             "create table if not exists clinic_task(
                 id integer primary key,
                 initial_check_state text,
@@ -86,19 +101,19 @@ impl DatabaseManager {
             )
         })?;
 
-        let id = self
+        let id = manager
             .basic_info_connection
             .borrow_mut()
             .query_one("select max(id) from clinic_task", [], |r| {
                 r.get::<usize, i32>(0)
             })
             .unwrap_or(0); // Error occurs only when the table is empty
-        self.id.replace(id);
+        manager.id.replace(id);
 
         Ok(())
     }
 
-    pub fn create_task(&self, task: &Task) -> Result<(), Error> {
+    fn create_task(&self, task: &Task) -> Result<(), Error> {
         execute_database_command(
             &self.basic_info_connection.borrow_mut(),
             "insert into clinic_task (id) values (?1)",
@@ -163,11 +178,29 @@ impl Task {
         Ok(task)
     }
 
-    pub fn update_initial_state(&mut self, state: InitialState) -> Result<(), Error> {
+    pub fn update_at_initial(&mut self, state: InitialState) -> Result<(), Error> {
         self.location = Some(state.location);
         self.staff = Some(state.staff);
         self.remedy = Some(state.remedy);
         self.initial_post = Some(state.post);
+        self.initial_check_state = Some(state.initial_check);
+        self.update_to_database()
+    }
+
+    pub fn update_initial_confirm(&mut self, time: String) -> Result<(), Error> {
+        self.initial_confirm = Some(time);
+        self.update_to_database()
+    }
+
+    pub fn update_at_final(&mut self, state: FinalState) -> Result<(), Error> {
+        self.final_check_state = Some(state.final_check);
+        self.additional = state.additional;
+        self.final_post = Some(state.post);
+        self.update_to_database()
+    }
+
+    pub fn update_final_confirm(&mut self, time: String) -> Result<(), Error> {
+        self.final_confirm = Some(time);
         self.update_to_database()
     }
 
@@ -204,40 +237,33 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::database::{DatabaseManager, FinalState, InitialState, Task};
     use std::rc::Rc;
-    use crate::database::{DatabaseManager, InitialState, Task};
     const BASIC_DATABASE: &str = "./clinic_test.db";
     const DETAIL_DATABASE: &str = "./clinic_test_detail.db";
 
     #[test]
-    fn database_load() {
-        let db = DatabaseManager::build((BASIC_DATABASE, DETAIL_DATABASE)).unwrap();
-        db.load_database().unwrap();
-        assert_ne!(*db.id.borrow(), -1);
-    }
-
-    #[test]
-    fn new_task() {
-        let db = DatabaseManager::build((BASIC_DATABASE, DETAIL_DATABASE)).unwrap();
-        db.load_database().unwrap();
-        let db = Rc::new(db);
-        let task = Task::build(db.clone()).unwrap();
-        assert_ne!(task.id, -1);
-        assert!(task.location.is_none());
-        db.create_task(&task).unwrap();
-    }
-
-    #[test]
     fn test_task() {
         let db = DatabaseManager::build((BASIC_DATABASE, DETAIL_DATABASE)).unwrap();
-        db.load_database().unwrap();
         let db = Rc::new(db);
         let mut task = Task::build(db.clone()).unwrap();
-        task.update_initial_state(InitialState {
+        assert_ne!(task.id, -1);
+        assert!(task.location.is_none());
+        task.update_at_initial(InitialState {
             location: "qiushi".to_string(),
             staff: "potato".to_string(),
+            initial_check: "1111".to_string(),
             remedy: "Change the CPU fan".to_string(),
             post: "202508121505".to_string(),
+        })
+        .unwrap();
+        task.update_initial_confirm("202508121626".to_string())
+            .unwrap();
+        task.update_at_final(FinalState {
+            final_check: "1111".to_string(),
+            additional: None,
+            post: "202508121711".to_string(),
         }).unwrap();
+        task.update_final_confirm("202506121713".to_string()).unwrap();
     }
 }
