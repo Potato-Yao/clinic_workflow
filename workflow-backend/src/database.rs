@@ -1,8 +1,9 @@
+use crate::DATABASE_NONE_PLACER;
 use rusqlite::{Connection, Params};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::io::{Error, ErrorKind};
 use std::path::Path;
-use std::rc::Rc;
 
 pub struct DatabaseManager {
     basic_info_connection: RefCell<Connection>,
@@ -10,11 +11,14 @@ pub struct DatabaseManager {
     id: RefCell<i32>,
 }
 
-pub struct Task {
-    __manager: Rc<DatabaseManager>,
+#[derive(Serialize, Deserialize, Default)]
+pub struct Task<'a> {
+    #[serde(skip_serializing, skip_deserializing)]
+    __manager: Option<&'a DatabaseManager>, // it should never be None, it's just for Default
     id: i32,
     location: Option<String>,
     staff: Option<String>,
+    customer: Option<String>,
     initial_post: Option<String>,
     initial_confirm: Option<String>,
     final_post: Option<String>,
@@ -30,14 +34,17 @@ pub struct Task {
     additional: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
 pub struct InitialState {
     location: String,
     staff: String,
+    customer: String,
     initial_check: String,
     remedy: String,
     post: String,
 }
 
+#[derive(Deserialize)]
 pub struct FinalState {
     final_check: String,
     additional: Option<String>,
@@ -69,6 +76,7 @@ impl DatabaseManager {
                 id integer primary key,
                 location text,
                 staff text,
+                customer text,
                 initial_post text,
                 initial_confirm text,
                 final_post text,
@@ -130,13 +138,14 @@ impl DatabaseManager {
     }
 
     fn update_from_task(&self, task: &Task) -> Result<(), Error> {
-        let none = String::from("None");
+        let none = String::from(DATABASE_NONE_PLACER);
         execute_database_command(
             &self.basic_info_connection.borrow_mut(),
-            "update clinic_task set location = ?1, staff = ?2, initial_post = ?3, initial_confirm = ?4, final_post = ?5, final_confirm = ?6 where id = ?7",
+            "update clinic_task set location = ?1, staff = ?2, customer = ?3, initial_post = ?4, initial_confirm = ?5, final_post = ?6, final_confirm = ?7 where id = ?8",
             (
                 &task.location.as_ref().unwrap_or(&none),
                 &task.staff.as_ref().unwrap_or(&none),
+                &task.customer.as_ref().unwrap_or(&none),
                 &task.initial_post.as_ref().unwrap_or(&none),
                 &task.initial_confirm.as_ref().unwrap_or(&none),
                 &task.final_post.as_ref().unwrap_or(&none),
@@ -151,27 +160,70 @@ impl DatabaseManager {
         ).map(|_| {})
     }
 
+    pub fn get_task_by_id(&'_ self, id: i32) -> Result<Task<'_>, Error> {
+        let mut task = Task::new(&self);
+        task.id = id;
+        self.basic_info_connection.borrow_mut().query_row(
+            "select location, staff, customer, initial_post, initial_confirm, final_post, final_confirm from clinic_task where id=?1",
+            [id],
+            |r| {
+                task.location = Self::option_string_replacer(r.get(0)?); // column of primary key doesn't  count
+                task.staff = Self::option_string_replacer(r.get(1)?);
+                task.customer = Self::option_string_replacer(r.get(2)?);
+                task.initial_post = Self::option_string_replacer(r.get(3)?);
+                task.initial_confirm = Self::option_string_replacer(r.get(4)?);
+                task.final_post = Self::option_string_replacer(r.get(5)?);
+                task.final_confirm = Self::option_string_replacer(r.get(6)?);
+
+                Ok(())
+            }
+        ).map_err(|e| {
+            Error::new(ErrorKind::Other, format!("Can't execute query on basic database with error {e}"))
+        })?;
+        self.detail_info_connection.borrow_mut().query_row(
+            "select initial_check_state, remedy, final_check_state, additional from clinic_task where id = ?1",
+            [id],
+            |r| {
+                task.initial_check_state = Self::option_string_replacer(r.get(0)?); // column of primary key doesn't  count
+                task.remedy = Self::option_string_replacer(r.get(1)?);
+                task.final_check_state = Self::option_string_replacer(r.get(2)?);
+                task.additional = Self::option_string_replacer(r.get(3)?);
+
+                Ok(())
+            }
+        ).map_err(|e| {
+            Error::new(ErrorKind::Other, format!("Can't execute query on detailed database with error {e}"))
+        })?;
+
+        Ok(task)
+    }
+
+    fn option_string_replacer(s: String) -> Option<String> {
+        if s == DATABASE_NONE_PLACER {
+            return None;
+        }
+        Some(s)
+    }
+
     fn get_id(&self) -> i32 {
         *self.id.borrow_mut() += 1;
         self.id.borrow().clone()
     }
 }
 
-impl Task {
-    pub fn build(manager: Rc<DatabaseManager>) -> Result<Self, Error> {
+impl<'a> Task<'a> {
+    pub fn new(manager: &'a DatabaseManager) -> Self {
+        Task {
+            __manager: Some(manager),
+            ..Default::default()
+        }
+    }
+
+    pub fn build_new(manager: &'a DatabaseManager) -> Result<Self, Error> {
         let task = Task {
-            __manager: Rc::clone(&manager),
+            __manager: Some(manager),
             id: manager.get_id(),
-            location: None,
-            staff: None,
-            initial_post: None,
-            initial_confirm: None,
-            final_post: None,
-            final_confirm: None,
-            initial_check_state: None,
-            remedy: None,
-            final_check_state: None,
-            additional: None,
+            ..Default::default()
         };
         manager.create_task(&task)?;
 
@@ -181,6 +233,7 @@ impl Task {
     pub fn update_at_initial(&mut self, state: InitialState) -> Result<(), Error> {
         self.location = Some(state.location);
         self.staff = Some(state.staff);
+        self.customer = Some(state.customer);
         self.remedy = Some(state.remedy);
         self.initial_post = Some(state.post);
         self.initial_check_state = Some(state.initial_check);
@@ -204,8 +257,19 @@ impl Task {
         self.update_to_database()
     }
 
+    pub fn get_id(&self) -> i32 {
+        self.id
+    }
+
+    pub fn get_initial_post(&self) -> String {
+        if let Some(s) = &self.initial_post {
+            return s.clone();
+        }
+        String::from(DATABASE_NONE_PLACER)
+    }
+
     fn update_to_database(&self) -> Result<(), Error> {
-        self.__manager.update_from_task(&self)
+        self.__manager.as_ref().unwrap().update_from_task(&self)
     }
 }
 
@@ -238,20 +302,19 @@ where
 #[cfg(test)]
 mod tests {
     use crate::database::{DatabaseManager, FinalState, InitialState, Task};
-    use std::rc::Rc;
     const BASIC_DATABASE: &str = "./clinic_test.db";
     const DETAIL_DATABASE: &str = "./clinic_test_detail.db";
 
     #[test]
     fn test_task() {
         let db = DatabaseManager::build((BASIC_DATABASE, DETAIL_DATABASE)).unwrap();
-        let db = Rc::new(db);
-        let mut task = Task::build(db.clone()).unwrap();
+        let mut task = Task::build_new(&db).unwrap();
         assert_ne!(task.id, -1);
         assert!(task.location.is_none());
         task.update_at_initial(InitialState {
             location: "qiushi".to_string(),
             staff: "potato".to_string(),
+            customer: "Y.S.".to_string(),
             initial_check: "1111".to_string(),
             remedy: "Change the CPU fan".to_string(),
             post: "202508121505".to_string(),
@@ -263,7 +326,13 @@ mod tests {
             final_check: "1111".to_string(),
             additional: None,
             post: "202508121711".to_string(),
-        }).unwrap();
-        task.update_final_confirm("202506121713".to_string()).unwrap();
+        })
+        .unwrap();
+        task.update_final_confirm("202506121713".to_string())
+            .unwrap();
+
+        let ta = db.get_task_by_id(1).unwrap();
+        assert_eq!(ta.id, 1);
+        assert_eq!(ta.location.unwrap(), "qiushi");
     }
 }
