@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+<script>
+    fetch("http://127.0.0.1:8080/staff/x10x/finished", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            "final_check": "1011",
+            "additional": "Nothing",
+            "post": "202508141445"
+        })
+    })
+        .then(res => res.json())
+        .then(data => console.log("Response:", data))
+        .catch(err => console.error("Error:", err));
+</script>
+</body>
+</html>

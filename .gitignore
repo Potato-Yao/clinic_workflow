@@ -1,2 +1,5 @@
 workflow-backend/.idea/
 workflow-backend/target/
+workflow-backend/img_backup/
+workflow-backend/clinic_test.db/
+workflow-backend/clinic_test_detail.db/

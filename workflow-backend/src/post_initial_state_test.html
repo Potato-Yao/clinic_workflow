@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+<script>
+    fetch("http://127.0.0.1:8080/staff/create_task", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            "location": "qiushi",
+            "staff": "potato",
+            "customer": "QXY",
+            "initial_check": "1011",
+            "remedy": "change the gpu fan",
+            "post": "202508131959"
+        })
+    })
+        .then(res => res.json())
+        .then(data => console.log("Response:", data))
+        .catch(err => console.error("Error:", err));
+</script>
+</body>
+</html>

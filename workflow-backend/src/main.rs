@@ -1,3 +1,4 @@
+use std::fs;
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, web};
 use std::path::Path;
@@ -11,6 +12,12 @@ async fn main() -> std::io::Result<()> {
         std::env::set_var("RUST_LOG", "actix_web=debug");
     }
     env_logger::init();
+
+    let image_backup_path = Path::new("./img_backup");
+    if !image_backup_path.exists() {
+        fs::create_dir(image_backup_path)?;
+    }
+
     #[cfg(debug_assertions)]
     let database_location = (
         Path::new("./clinic_test.db"),
@@ -28,7 +35,10 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Cors::permissive())
             .app_data(db.clone())
-            .service(create_task)
+            .service(post_initial_state)
+            .service(make_initial_confirm)
+            .service(post_final_state)
+            .service(make_final_confirm)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
